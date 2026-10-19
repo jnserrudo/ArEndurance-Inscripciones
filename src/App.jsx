@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Form from './Form.jsx'
 import { ToastProvider } from './Toast.jsx'
 
@@ -46,38 +46,6 @@ function DaysLeft({ fecha }) {
   const dias = Math.ceil((TARGET - now) / 864e5)
   if (dias <= 0) return <span className="badge">Ya empezó</span>
   return <span className="badge">Faltan {dias === 1 ? '1 día' : `${dias} días`}</span>
-}
-
-/* ─── Carrusel mobile ───────────────────────────────────────────── */
-function Carousel({ onPhotoClick }) {
-  const [idx, setIdx] = useState(0)
-  const timer = useRef(null)
-  const go = useCallback((next) => setIdx(((next % FOTOS.length) + FOTOS.length) % FOTOS.length), [])
-  const startAuto = useCallback(() => {
-    clearInterval(timer.current)
-    timer.current = setInterval(() => setIdx(p => (p + 1) % FOTOS.length), 4000)
-  }, [])
-  useEffect(() => { startAuto(); return () => clearInterval(timer.current) }, [startAuto])
-  const prev = () => { go(idx - 1); startAuto() }
-  const next = () => { go(idx + 1); startAuto() }
-  return (
-    <div className="carousel" aria-label="Fotos del equipo">
-      <div className="carousel-track" style={{ transform: `translateX(-${idx * 100}%)` }}>
-        {FOTOS.map(({ src, pos }, i) => (
-          <div key={i} className="carousel-slide" onClick={() => onPhotoClick(i)}>
-            <img src={src} alt={`Foto ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} style={{ objectPosition: pos }} />
-          </div>
-        ))}
-      </div>
-      <button className="car-btn car-prev" onClick={prev} aria-label="Anterior">‹</button>
-      <button className="car-btn car-next" onClick={next} aria-label="Siguiente">›</button>
-      <div className="car-dots">
-        {FOTOS.map((_, i) => (
-          <button key={i} className={`car-dot${i === idx ? ' on' : ''}`} onClick={() => { go(i); startAuto() }} aria-label={`Foto ${i + 1}`} />
-        ))}
-      </div>
-    </div>
-  )
 }
 
 /* ─── Info (página principal) ───────────────────────────────────── */
@@ -146,9 +114,6 @@ function Info({ onInscribir }) {
           <div className="car-header">
             <span className="section-tag">El equipo en acción</span>
             <p className="car-header-sub">Fotos de entrenamientos y competencias · Clic para ampliar</p>
-          </div>
-          <div className="car-mobile">
-            <Carousel onPhotoClick={(i) => setLightboxIdx(i)} />
           </div>
           <div className="desk-gallery" role="list" aria-label="Fotos del equipo">
             {FOTOS.map(({ src, pos }, i) => (

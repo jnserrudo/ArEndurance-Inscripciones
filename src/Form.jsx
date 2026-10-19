@@ -18,6 +18,53 @@ const NIVELES = ['Principiante', 'Intermedio', 'Avanzado', 'Competitivo']
 const DISCS_TRI   = ['Natación', 'Ciclismo', 'Running', 'Ninguna aún']
 const DISCS_TRAIL = ['Trail Running', 'Senderismo', 'Orientación', 'Escalada', 'Ninguna aún']
 
+/* Datos de pago — la preinscripción no exige pagar; el profe lo coordina por WhatsApp */
+const PRECIO   = '$50.000'
+const ALIAS    = 'Aromero.bru.9177'
+const WPP_NUM  = '5493875325438'
+
+function PagoInfo({ data, soloInfo = false }) {
+  const toast = useToast()
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(ALIAS)
+      toast.success('Alias copiado', ALIAS)
+    } catch {
+      toast.error('No se pudo copiar', `Anotá el alias: ${ALIAS}`)
+    }
+  }
+  const wppText = encodeURIComponent(
+    `Hola! Soy ${data.nombre} ${data.apellido}, me preinscribí al ${data.campamento}. Te envío el comprobante de pago.`
+  )
+  return (
+    <div className="pago-box">
+      <div className="pago-row">
+        <span>Valor del camp</span>
+        <strong>{PRECIO}</strong>
+      </div>
+      {!soloInfo && (
+        <>
+          <div className="pago-row">
+            <span>Alias para transferir</span>
+            <span className="pago-alias">
+              <code>{ALIAS}</code>
+              <button type="button" className="pago-copy" onClick={copiar}>Copiar</button>
+            </span>
+          </div>
+          <a className="btn pago-wpp" href={`https://wa.me/${WPP_NUM}?text=${wppText}`} target="_blank" rel="noopener noreferrer">
+            Enviar comprobante por WhatsApp
+          </a>
+        </>
+      )}
+      <p className="pago-note">
+        {soloInfo
+          ? 'El pago se coordina después con el profe por WhatsApp (valor completo o descuento). Al confirmar tu preinscripción vas a ver el alias y el contacto para enviar el comprobante — no es obligatorio para enviar el formulario.'
+          : 'Ya quedaste preinscripto/a: el pago lo coordinás con el profe por WhatsApp (valor completo o descuento).'}
+      </p>
+    </div>
+  )
+}
+
 const NO_EMPTY = (v) => String(v).trim() !== ''
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const TEL      = (v) => v.replace(/\D/g, '').length >= 8
@@ -168,7 +215,7 @@ export default function Form({ onBack, campInicial = '' }) {
     const retry = async () => {
       if (!hayPendientes()) return
       const n = await reenviarPendientes()
-      if (n) toast.success('Inscripción enviada', 'Se envió la inscripción pendiente.')
+      if (n) toast.success('Preinscripción enviada', 'Se envió la preinscripción pendiente.')
     }
     retry()
     window.addEventListener('online', retry)
@@ -228,9 +275,9 @@ export default function Form({ onBack, campInicial = '' }) {
       setTimeout(() => { document.querySelector('.field.error input, .field.error textarea')?.focus() }, 50)
       return
     }
-    if (!navigator.onLine) { toast.error('Sin conexión', 'Conectate para enviar tu inscripción.'); return }
+    if (!navigator.onLine) { toast.error('Sin conexión', 'Conectate para enviar tu preinscripción.'); return }
     setSending(true); setSendError('')
-    const loadingId = toast.info('Enviando tu inscripción', 'No cierres esta página.', 0)
+    const loadingId = toast.loading('Enviando tu preinscripción', 'No cierres esta página.')
     try {
       const [res] = await Promise.all([
         enviarInscripcion({ ...data, instagram: data.instagram.replace(/^@/, '') }),
@@ -238,14 +285,14 @@ export default function Form({ onBack, campInicial = '' }) {
       ])
       localStorage.removeItem(DRAFT_KEY)
       toast.dismiss(loadingId)
-      if (res.demo) toast.warning('Modo de prueba', 'Falta conectar Google Sheets: esta inscripción NO se guardó.', 9000)
-      else toast.success('Inscripción enviada', 'Tus datos quedaron guardados correctamente.')
+      if (res.demo) toast.warning('Modo de prueba', 'Falta conectar Google Sheets: esta preinscripción NO se guardó.', 9000)
+      else toast.success('Preinscripción enviada', 'Tus datos quedaron guardados correctamente.')
       setDemo(res.demo)
       setDone(true); scrollTop()
     } catch {
       toast.dismiss(loadingId)
       toast.error('No pudimos enviar', 'Tus datos están a salvo. Tocá "Confirmar" para reintentar.')
-      setSendError('No se pudo enviar. Tus datos siguen guardados — tocá "Confirmar inscripción" para reintentar.')
+      setSendError('No se pudo enviar. Tus datos siguen guardados — tocá "Confirmar preinscripción" para reintentar.')
     } finally { setSending(false) }
   }
 
@@ -293,18 +340,19 @@ export default function Form({ onBack, campInicial = '' }) {
   if (done) {
     return modal(
       <>
-        {head('¡Ya estás adentro!', `${data.campamento} · Inscripción recibida`)}
+        {head('¡Ya estás adentro!', `${data.campamento} · Preinscripción recibida`)}
         <div className="card-body done" ref={top}>
           <div className={`done-camp-badge ${isTrail ? 'done-camp-trail' : 'done-camp-tri'}`}>
             {data.campamento}
           </div>
-          <p>Recibimos tu inscripción, <strong>{data.nombre}</strong>. Te vamos a contactar por WhatsApp o mail con los próximos pasos.</p>
+          <p>Recibimos tu preinscripción, <strong>{data.nombre}</strong>. Te vamos a contactar por WhatsApp o mail con los próximos pasos.</p>
           <p style={{ color: 'var(--gray)', fontSize: '.9rem' }}>La Caldera, Salta · 13, 14 y 15 de noviembre</p>
-          {demo   && <p className="notice">Modo de prueba: esta inscripción no se guardó en Google Sheets.</p>}
+          <PagoInfo data={data} />
+          {demo   && <p className="notice">Modo de prueba: esta preinscripción no se guardó en Google Sheets.</p>}
         </div>
         <footer className="card-foot">
           <button type="button" className="btn btn-plain" onClick={() => { setData(INIT); setStep(0); setErrors({}); setDone(false) }}>
-            Inscribir a otra persona
+            Preinscribir a otra persona
           </button>
           <button type="button" className="btn btn-main" onClick={onBack}>Listo</button>
         </footer>
@@ -316,8 +364,8 @@ export default function Form({ onBack, campInicial = '' }) {
     <ErrCtx.Provider value={errors}>
       {head(
         step === 0
-          ? 'Inscripción AR Endurance 2026'
-          : `Inscripción al ${data.campamento || 'Camp'}`,
+          ? 'Preinscripción AR Endurance 2026'
+          : `Preinscripción al ${data.campamento || 'Camp'}`,
         step === 0
           ? 'La Caldera, Salta · 13, 14 y 15 de noviembre'
           : `La Caldera, Salta · 13, 14 y 15 de noviembre`
@@ -390,6 +438,9 @@ export default function Form({ onBack, campInicial = '' }) {
               <Group k="alojamiento" label="¿Necesitás alojamiento?" hint="(opcional)">{opts('alojamiento', ['Sí', 'No', 'Ya tengo'])}</Group>
               <Field k="comentarios" label="Comentarios" hint="(opcional)">{area('comentarios')}</Field>
 
+              <h3>Pago</h3>
+              <PagoInfo data={data} soloInfo />
+
               <div className={`field ${errors.acepta_terminos ? 'error' : ''}`}>
                 <label className="agree" htmlFor="acepta_terminos">
                   <input id="acepta_terminos" type="checkbox" checked={data.acepta_terminos} onChange={(e) => set('acepta_terminos', e.target.checked)} />
@@ -411,7 +462,7 @@ export default function Form({ onBack, campInicial = '' }) {
                 {step === 0 && data.campamento ? `Continuar con ${data.campamento}` : 'Siguiente'}
               </button>
             : <button type="submit" className={`btn ${isTrail ? 'btn-main-trail' : 'btn-main'}`} disabled={sending || transitioning}>
-                {sending ? 'Enviando…' : 'Confirmar inscripción'}
+                {sending ? 'Enviando…' : 'Confirmar preinscripción'}
               </button>}
         </footer>
       </form>

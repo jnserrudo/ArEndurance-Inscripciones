@@ -15,9 +15,9 @@ export function ToastProvider({ children }) {
   const id = useRef(0)
 
   const remove = useCallback((i) => setItems((l) => l.filter((t) => t.id !== i)), [])
-  const push = useCallback((type, title, message, ms = 4500) => {
+  const push = useCallback((type, title, message, ms = 4500, loading = false) => {
     const i = ++id.current
-    setItems((l) => [...l.slice(-3), { id: i, type, title, message, ms }])
+    setItems((l) => [...l.slice(-3), { id: i, type, title, message, ms, loading }])
     if (ms) setTimeout(() => remove(i), ms)
     return i
   }, [remove])
@@ -27,6 +27,7 @@ export function ToastProvider({ children }) {
   api.error = (t, m, ms) => push('error', t, m, ms ?? 6500)
   api.warning = (t, m, ms) => push('warning', t, m, ms)
   api.info = (t, m, ms) => push('info', t, m, ms)
+  api.loading = (t, m) => push('info', t, m, 0, true)
   api.dismiss = remove
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export function ToastProvider({ children }) {
       <div className="toasts" aria-live="polite" aria-atomic="false">
         {items.map((t) => (
           <div key={t.id} className={`toast toast-${t.type}`} role={t.type === 'error' ? 'alert' : 'status'} onClick={() => remove(t.id)}>
-            <span className="toast-ico">{ICONS[t.type]}</span>
+            <span className="toast-ico">{t.loading ? <span className="toast-spin" aria-hidden="true" /> : ICONS[t.type]}</span>
             <div className="toast-txt"><b>{t.title}</b>{t.message && <span>{t.message}</span>}</div>
             <button className="toast-x" aria-label="Cerrar notificación" onClick={(e) => { e.stopPropagation(); remove(t.id) }}>×</button>
             {t.ms > 0 && <i className="toast-bar" style={{ animationDuration: t.ms + 'ms' }} />}
