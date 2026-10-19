@@ -8,7 +8,9 @@
  * 5) Si modificás este código, hay que crear una NUEVA implementación (o "Administrar implementaciones" > editar > nueva versión).
  *
  * Seguimiento: la columna "estado" (primera después del ID) la editás vos a mano:
- * Pendiente / Confirmado / Pagó / Cancelado. La hoja "Resumen" cuenta todo sola.
+ * Pendiente / Confirmado / Pagó / Cancelado.
+ * La hoja "Resumen" usa fórmulas COUNTIF: se actualiza sola al editar o borrar filas.
+ * Si querés regenerarla ya, ejecutá la función actualizarResumen() desde el editor.
  */
 var HOJA = 'Inscripciones';
 // Claves internas: coinciden con el payload que manda la app. NO cambiar el orden.
@@ -103,44 +105,57 @@ function migrarEncabezados_(sheet) {
   return cambio || renombrado;
 }
 
-// Resumen con valores calculados por el script (sin fórmulas: evita errores
-// de separador ; vs , según el locale de la hoja). Se recalcula en cada POST
-// y también cuando editás la hoja "Inscripciones" a mano (ver onEdit).
+// Devuelve la letra A1 de una columna 1-based (1 -> A, 27 -> AA).
+function colLetter_(c) {
+  var s = '';
+  while (c > 0) { var m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); }
+  return s;
+}
+
+// El resumen usa FÓRMULAS COUNTIF/COUNTA en vivo: se actualizan solas al editar
+// o BORRAR filas. Borrar una fila no dispara el trigger onEdit, así que con
+// valores calculados por el script el resumen quedaba desactualizado.
 function actualizarResumen_(ss) {
   var r = ss.getSheetByName('Resumen') || ss.insertSheet('Resumen');
-  var sheet = ss.getSheetByName(HOJA);
-  var datos = sheet && sheet.getLastRow() > 1
-    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, COLUMNAS.length).getValues()
-    : [];
-  var idx = function (name) { return COLUMNAS.indexOf(name); };
-  var cuenta = function (colName, val) {
-    var c = idx(colName);
-    return datos.filter(function (f) { return String(f[c]).trim() === val; }).length;
+  var ref = function (colName) {
+    var letra = colLetter_(COLUMNAS.indexOf(colName) + 1);
+    return "'" + HOJA + "'!" + letra + '2:' + letra;
   };
-  var tz = ss.getSpreadsheetTimeZone();
+  var cuenta = function (colName, val) { return '=COUNTIF(' + ref(colName) + ',"' + val + '")'; };
   r.clear();
   r.getRange('A1:B1').setValues([['Resumen AR Endurance Camps', '']]).setFontWeight('bold');
-  r.getRange('A2').setValue('Actualizado: ' + Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm'))
+  r.getRange('A2').setValue('Conteos en vivo: se actualiza solo al editar o borrar filas.')
     .setFontSize(9).setFontColor('#5c6563');
-  r.getRange('A4:B15').setValues([
-    ['Total de inscriptos', datos.length],
-    ['TriCamp', cuenta('campamento', 'TriCamp')],
-    ['TrailCamp', cuenta('campamento', 'TrailCamp')],
-    ['Pendientes', cuenta('estado', 'Pendiente')],
-    ['Confirmados', cuenta('estado', 'Confirmado')],
-    ['Pagaron', cuenta('estado', 'Pagó')],
-    ['Cancelados', cuenta('estado', 'Cancelado')],
-    ['Nivel: Principiante', cuenta('nivel', 'Principiante')],
-    ['Nivel: Intermedio', cuenta('nivel', 'Intermedio')],
-    ['Nivel: Avanzado', cuenta('nivel', 'Avanzado')],
-    ['Nivel: Competitivo', cuenta('nivel', 'Competitivo')],
-    ['Con lesión actual', cuenta('lesiones', 'Sí, actualmente')]
+  r.getRange('A4:A15').setValues([
+    ['Total de inscriptos'], ['TriCamp'], ['TrailCamp'],
+    ['Pendientes'], ['Confirmados'], ['Pagaron'], ['Cancelados'],
+    ['Nivel: Principiante'], ['Nivel: Intermedio'], ['Nivel: Avanzado'], ['Nivel: Competitivo'],
+    ['Con lesión actual']
+  ]).setFontWeight('bold');
+  r.getRange('B4:B15').setFormulas([
+    ['=COUNTA(' + ref('id') + ')'],
+    [cuenta('campamento', 'TriCamp')],
+    [cuenta('campamento', 'TrailCamp')],
+    [cuenta('estado', 'Pendiente')],
+    [cuenta('estado', 'Confirmado')],
+    [cuenta('estado', 'Pagó')],
+    [cuenta('estado', 'Cancelado')],
+    [cuenta('nivel', 'Principiante')],
+    [cuenta('nivel', 'Intermedio')],
+    [cuenta('nivel', 'Avanzado')],
+    [cuenta('nivel', 'Competitivo')],
+    [cuenta('lesiones', 'Sí, actualmente')]
   ]);
-  r.getRange('A4:A15').setFontWeight('bold');
   r.setColumnWidth(1, 220);
 }
 
-// Al editar la hoja "Inscripciones" (ej: cambiar Estado a mano) se recalcula el Resumen.
+// Ejecutable a mano desde el editor para regenerar el resumen ahora mismo.
+function actualizarResumen() {
+  actualizarResumen_(SpreadsheetApp.getActiveSpreadsheet());
+}
+
+// Al editar "Inscripciones" reescribe las fórmulas del Resumen por si alguien
+// las borró. Los conteos igual se actualizan solos (son fórmulas en vivo).
 function onEdit(e) {
   if (!e) return;
   var sh = e.range.getSheet();

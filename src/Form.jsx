@@ -98,27 +98,36 @@ const RULES = [
 function validar(step, data) {
   const errs = {}
   Object.entries(RULES[step]).forEach(([k, [fn, msg]]) => { if (!fn(data[k])) errs[k] = msg })
+  // El contacto de emergencia debe ser un número distinto al personal
+  // (compara solo dígitos y permite variantes con/sin prefijo de país)
+  if (step === 2 && !errs.contacto_emergencia_telefono) {
+    const a = data.contacto_emergencia_telefono.replace(/\D/g, '')
+    const b = data.telefono.replace(/\D/g, '')
+    if (b.length >= 8 && (a === b || a.endsWith(b) || b.endsWith(a))) {
+      errs.contacto_emergencia_telefono = 'No puede ser el mismo número que tu teléfono'
+    }
+  }
   return errs
 }
 
 const ErrCtx = createContext({})
 
-function Field({ k, label, hint, children }) {
+function Field({ k, label, hint, req, children }) {
   const errors = useContext(ErrCtx)
   return (
     <div className={`field ${errors[k] ? 'error' : ''}`}>
-      <label htmlFor={k}>{label}{hint && <small> {hint}</small>}</label>
+      <label htmlFor={k}>{label}{req && <span className="req" aria-hidden="true"> *</span>}{hint && <small> {hint}</small>}</label>
       {children}
       {errors[k] && <span className="err" role="alert">{errors[k]}</span>}
     </div>
   )
 }
 
-function Group({ k, label, hint, children }) {
+function Group({ k, label, hint, req, children }) {
   const errors = useContext(ErrCtx)
   return (
     <fieldset className={`field ${errors[k] ? 'error' : ''}`}>
-      <legend>{label}{hint && <small> {hint}</small>}</legend>
+      <legend>{label}{req && <span className="req" aria-hidden="true"> *</span>}{hint && <small> {hint}</small>}</legend>
       {children}
       {errors[k] && <span className="err" role="alert">{errors[k]}</span>}
     </fieldset>
@@ -155,7 +164,7 @@ function CampSelector({ value, onChange, error }) {
   return (
     <div className={`camp-selector ${error ? 'camp-selector-error' : ''}`}>
       <p className="camp-selector-label">
-        La Caldera, Salta · 13, 14 y 15 de noviembre · Elegí tu modalidad
+        La Caldera, Salta · 13, 14 y 15 de noviembre · Elegí tu modalidad<span className="req" aria-hidden="true"> *</span>
       </p>
       <div className="camp-selector-cards">
         {camps.map((c) => (
@@ -401,11 +410,11 @@ export default function Form({ onBack, campInicial = '' }) {
                   </div>
                 </div>
               )}
-              <Field k="nombre"   label="Nombre">{txt('nombre',   { autoComplete: 'given-name' })}</Field>
-              <Field k="apellido" label="Apellido">{txt('apellido', { autoComplete: 'family-name' })}</Field>
-              <Field k="edad"     label="Edad"><input id="edad" type="number" inputMode="numeric" min="10" max="90" value={data.edad} onChange={(e) => set('edad', e.target.value)} /></Field>
-              <Field k="telefono" label="Teléfono / WhatsApp"><input id="telefono" type="tel" inputMode="tel" autoComplete="tel" placeholder="387 000 0000" value={data.telefono} onChange={(e) => set('telefono', e.target.value)} /></Field>
-              <div className="span2"><Field k="email" label="Correo electrónico"><input id="email" type="email" inputMode="email" autoComplete="email" value={data.email} onChange={(e) => set('email', e.target.value)} /></Field></div>
+              <Field k="nombre"   label="Nombre" req>{txt('nombre',   { autoComplete: 'given-name' })}</Field>
+              <Field k="apellido" label="Apellido" req>{txt('apellido', { autoComplete: 'family-name' })}</Field>
+              <Field k="edad"     label="Edad" req><input id="edad" type="number" inputMode="numeric" min="10" max="90" value={data.edad} onChange={(e) => set('edad', e.target.value)} /></Field>
+              <Field k="telefono" label="Teléfono / WhatsApp" req><input id="telefono" type="tel" inputMode="tel" autoComplete="tel" placeholder="387 000 0000" value={data.telefono} onChange={(e) => set('telefono', e.target.value)} /></Field>
+              <div className="span2"><Field k="email" label="Correo electrónico" req><input id="email" type="email" inputMode="email" autoComplete="email" value={data.email} onChange={(e) => set('email', e.target.value)} /></Field></div>
               <div className="span2"><Field k="instagram" label="Instagram" hint="(opcional)">{txt('instagram', { autoCapitalize: 'none', autoCorrect: 'off', placeholder: '@usuario' })}</Field></div>
             </div>
           )}
@@ -413,24 +422,24 @@ export default function Form({ onBack, campInicial = '' }) {
           {/* STEP 2 — deporte y salud */}
           {step === 2 && (
             <div className="grid">
-              <Group k="nivel" label="Nivel actual">{opts('nivel', NIVELES)}</Group>
-              <Group k="disciplinas" label={isTrail ? '¿Qué disciplinas practicás?' : '¿Qué disciplinas practicás?'} hint="(podés elegir varias)">
+              <Group k="nivel" label="Nivel actual" req>{opts('nivel', NIVELES)}</Group>
+              <Group k="disciplinas" label={isTrail ? '¿Qué disciplinas practicás?' : '¿Qué disciplinas practicás?'} hint="(podés elegir varias)" req>
                 {opts('disciplinas', discs, true)}
               </Group>
               <Field k="antecedentes_deportivos" label="Antecedentes deportivos" hint="(carreras, años entrenando, club; opcional)">{area('antecedentes_deportivos')}</Field>
-              <Field k="objetivo_corto"   label="Objetivo a corto plazo"   hint="(próximos 3 meses)">{area('objetivo_corto')}</Field>
-              <Field k="objetivo_mediano" label="Objetivo a mediano plazo" hint="(6 a 12 meses)">{area('objetivo_mediano')}</Field>
+              <Field k="objetivo_corto"   label="Objetivo a corto plazo"   hint="(próximos 3 meses)" req>{area('objetivo_corto')}</Field>
+              <Field k="objetivo_mediano" label="Objetivo a mediano plazo" hint="(6 a 12 meses)" req>{area('objetivo_mediano')}</Field>
 
               <h3>Salud</h3>
-              <Group k="lesiones" label="¿Tuviste lesiones?">{opts('lesiones', ['No', 'Sí, ya recuperada', 'Sí, actualmente'])}</Group>
+              <Group k="lesiones" label="¿Tuviste lesiones?" req>{opts('lesiones', ['No', 'Sí, ya recuperada', 'Sí, actualmente'])}</Group>
               {data.lesiones.startsWith('Sí') && <Field k="detalle_lesiones" label="Detalle de la lesión" hint="(zona, cuándo, tratamiento)">{area('detalle_lesiones')}</Field>}
               <Field k="condiciones_medicas" label="Condiciones médicas, alergias o medicación" hint="(opcional)">{area('condiciones_medicas')}</Field>
               <Field k="alimentacion" label="Restricciones alimentarias" hint="(opcional)">{txt('alimentacion')}</Field>
 
               <h3>Contacto de emergencia</h3>
               <div className="grid two">
-                <Field k="contacto_emergencia_nombre" label="Nombre y vínculo">{txt('contacto_emergencia_nombre', { placeholder: 'Ej: María (madre)' })}</Field>
-                <Field k="contacto_emergencia_telefono" label="Teléfono"><input id="contacto_emergencia_telefono" type="tel" inputMode="tel" value={data.contacto_emergencia_telefono} onChange={(e) => set('contacto_emergencia_telefono', e.target.value)} /></Field>
+                <Field k="contacto_emergencia_nombre" label="Nombre y vínculo" req>{txt('contacto_emergencia_nombre', { placeholder: 'Ej: María (madre)' })}</Field>
+                <Field k="contacto_emergencia_telefono" label="Teléfono" req><input id="contacto_emergencia_telefono" type="tel" inputMode="tel" value={data.contacto_emergencia_telefono} onChange={(e) => set('contacto_emergencia_telefono', e.target.value)} /></Field>
               </div>
 
               <h3>Logística</h3>
@@ -444,7 +453,7 @@ export default function Form({ onBack, campInicial = '' }) {
               <div className={`field ${errors.acepta_terminos ? 'error' : ''}`}>
                 <label className="agree" htmlFor="acepta_terminos">
                   <input id="acepta_terminos" type="checkbox" checked={data.acepta_terminos} onChange={(e) => set('acepta_terminos', e.target.checked)} />
-                  <span>Declaro que la información es verdadera, que me encuentro apto/a para realizar actividad física y autorizo el uso de mis datos para la organización del camp.</span>
+                  <span><span className="req" aria-hidden="true">* </span>Declaro que la información es verdadera, que me encuentro apto/a para realizar actividad física y autorizo el uso de mis datos para la organización del camp.</span>
                 </label>
                 {errors.acepta_terminos && <span className="err" role="alert">{errors.acepta_terminos}</span>}
               </div>

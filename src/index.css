@@ -308,6 +308,7 @@ input:hover, textarea:hover { border-color: #b9c0bc; }
 input:focus, textarea:focus { outline: none; border-color: var(--green); background: var(--white); }
 .field.error input, .field.error textarea { border-color: var(--danger); background: #fdf3f2; }
 .err { color: var(--danger); font-size: .82rem; }
+.req { color: var(--danger); font-weight: 700; }
 
 .opts { display: flex; flex-wrap: wrap; gap: .45rem; }
 .opt { position: relative; flex: 1 1 auto; }
