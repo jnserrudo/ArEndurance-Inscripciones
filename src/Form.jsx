@@ -3,9 +3,10 @@ import { enviarInscripcion, reenviarPendientes, hayPendientes } from './sheets.j
 import { useToast } from './Toast.jsx'
 
 const DRAFT_KEY = 'tricamp_borrador'
-const STEPS = ['Tus datos', 'Deporte y salud']
+const STEPS = ['Tu camp', 'Tus datos', 'Deporte y salud']
 
 const INIT = {
+  campamento: '',
   nombre: '', apellido: '', edad: '', email: '', telefono: '', instagram: '',
   nivel: '', disciplinas: [], antecedentes_deportivos: '', objetivo_corto: '', objetivo_mediano: '',
   lesiones: '', detalle_lesiones: '', condiciones_medicas: '', alimentacion: '',
@@ -14,28 +15,36 @@ const INIT = {
 }
 
 const NIVELES = ['Principiante', 'Intermedio', 'Avanzado', 'Competitivo']
-const DISCS = ['Natación', 'Ciclismo', 'Running', 'Ninguna aún']
+const DISCS_TRI   = ['Natación', 'Ciclismo', 'Running', 'Ninguna aún']
+const DISCS_TRAIL = ['Trail Running', 'Senderismo', 'Orientación', 'Escalada', 'Ninguna aún']
+
 const NO_EMPTY = (v) => String(v).trim() !== ''
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const TEL = (v) => v.replace(/\D/g, '').length >= 8
+const TEL      = (v) => v.replace(/\D/g, '').length >= 8
 
 const RULES = [
+  // Step 0 — elegir camp
   {
-    nombre: [NO_EMPTY, 'Ingresá tu nombre'],
+    campamento: [NO_EMPTY, 'Elegí un camp para continuar'],
+  },
+  // Step 1 — datos personales
+  {
+    nombre:   [NO_EMPTY, 'Ingresá tu nombre'],
     apellido: [NO_EMPTY, 'Ingresá tu apellido'],
-    edad: [(v) => v >= 10 && v <= 90, 'Ingresá una edad válida'],
-    email: [(v) => EMAIL_RE.test(v), 'Ingresá un correo válido'],
+    edad:     [(v) => v >= 10 && v <= 90, 'Ingresá una edad válida'],
+    email:    [(v) => EMAIL_RE.test(v), 'Ingresá un correo válido'],
     telefono: [TEL, 'Ingresá un teléfono válido'],
   },
+  // Step 2 — deporte y salud
   {
-    nivel: [NO_EMPTY, 'Elegí tu nivel'],
-    disciplinas: [(v) => v.length > 0, 'Elegí al menos una opción'],
-    objetivo_corto: [NO_EMPTY, 'Contanos tu objetivo a corto plazo'],
-    objetivo_mediano: [NO_EMPTY, 'Contanos tu objetivo a mediano plazo'],
-    lesiones: [NO_EMPTY, 'Indicá si tuviste lesiones'],
-    contacto_emergencia_nombre: [NO_EMPTY, 'Ingresá un contacto de emergencia'],
-    contacto_emergencia_telefono: [TEL, 'Ingresá un teléfono válido'],
-    acepta_terminos: [(v) => v === true, 'Debés aceptar para inscribirte'],
+    nivel:                        [NO_EMPTY,           'Elegí tu nivel'],
+    disciplinas:                  [(v) => v.length > 0, 'Elegí al menos una opción'],
+    objetivo_corto:               [NO_EMPTY,           'Contanos tu objetivo a corto plazo'],
+    objetivo_mediano:             [NO_EMPTY,           'Contanos tu objetivo a mediano plazo'],
+    lesiones:                     [NO_EMPTY,           'Indicá si tuviste lesiones'],
+    contacto_emergencia_nombre:   [NO_EMPTY,           'Ingresá un contacto de emergencia'],
+    contacto_emergencia_telefono: [TEL,                'Ingresá un teléfono válido'],
+    acepta_terminos:              [(v) => v === true,  'Debés aceptar para inscribirte'],
   },
 ]
 
@@ -69,34 +78,97 @@ function Group({ k, label, hint, children }) {
   )
 }
 
-export default function Form({ onBack }) {
+/* ─── Paso 0: Selección de camp ─────────────────────────────────── */
+function CampSelector({ value, onChange, error }) {
+  const camps = [
+    {
+      id: 'TriCamp',
+      title: 'TriCamp',
+      sub: 'Natación · Ciclismo · Running',
+      items: [
+        'Natación en aguas abiertas',
+        'Ciclismo de ruta y montaña',
+        'Running trail y asfalto',
+      ],
+      color: 'camp-sel-tri',
+    },
+    {
+      id: 'TrailCamp',
+      title: 'TrailCamp',
+      sub: 'Trail · Senderismo · Montaña',
+      items: [
+        'Trail running técnico',
+        'Senderismo y orientación',
+        'Técnica de fuerza en altura',
+      ],
+      color: 'camp-sel-trail',
+    },
+  ]
+
+  return (
+    <div className={`camp-selector ${error ? 'camp-selector-error' : ''}`}>
+      <p className="camp-selector-label">
+        La Caldera, Salta · 13, 14 y 15 de noviembre · Elegí tu modalidad
+      </p>
+      <div className="camp-selector-cards">
+        {camps.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className={`camp-sel-card ${c.color} ${value === c.id ? 'camp-sel-card-on' : ''}`}
+            onClick={() => onChange(c.id)}
+            aria-pressed={value === c.id}
+          >
+            <strong className="camp-sel-title">{c.title}</strong>
+            <span className="camp-sel-sub">{c.sub}</span>
+            <ul className="camp-sel-list">
+              {c.items.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            {value === c.id && <span className="camp-sel-check">✓ Seleccionado</span>}
+          </button>
+        ))}
+      </div>
+      {error && <span className="err" role="alert" style={{ display: 'block', marginTop: '.5rem' }}>{error}</span>}
+    </div>
+  )
+}
+
+/* ─── Formulario principal ──────────────────────────────────────── */
+export default function Form({ onBack, campInicial = '' }) {
   const [data, setData] = useState(() => {
-    try { return { ...INIT, ...JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') } } catch { return INIT }
+    try {
+      const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}')
+      // campInicial toma precedencia sobre borrador si viene desde un botón específico
+      return { ...INIT, ...saved, ...(campInicial ? { campamento: campInicial, disciplinas: [] } : {}) }
+    } catch { return { ...INIT, campamento: campInicial } }
   })
-  const [step, setStep] = useState(() => Math.min(Number(sessionStorage.getItem(DRAFT_KEY + '_step')) || 0, STEPS.length - 1))
-  const [errors, setErrors] = useState({})
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState('')
-  const [done, setDone] = useState(false)
-  const [codigo, setCodigo] = useState('')
-  const [demo, setDemo] = useState(false)
-  const top = useRef(null)
-  const toast = useToast()
+
+  const [step, setStep]                   = useState(0)
+  const [errors, setErrors]               = useState({})
+  const [sending, setSending]             = useState(false)
+  const [sendError, setSendError]         = useState('')
+  const [done, setDone]                   = useState(false)
+  const [demo, setDemo]                   = useState(false)
+  const [transitioning, setTransitioning] = useState(false)
+  const top        = useRef(null)
+  const toast      = useToast()
+  const toastShown = useRef(false)
 
   useEffect(() => { if (!done) localStorage.setItem(DRAFT_KEY, JSON.stringify(data)) }, [data, done])
-  useEffect(() => { sessionStorage.setItem(DRAFT_KEY + '_step', String(step)) }, [step])
 
   useEffect(() => {
-    if (data.nombre || data.email) toast.info('Retomamos tu borrador', 'Tus datos guardados siguen acá.')
+    if (!toastShown.current && (data.nombre || data.email)) {
+      toastShown.current = true
+      toast.info('Retomamos tu borrador', 'Tus datos guardados siguen acá.')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Reenviar inscripciones que quedaron pendientes por falta de conexión
   useEffect(() => {
     const retry = async () => {
       if (!hayPendientes()) return
       const n = await reenviarPendientes()
-      if (n) toast.success('Inscripción enviada', 'Se envió la inscripción que había quedado pendiente.')
+      if (n) toast.success('Inscripción enviada', 'Se envió la inscripción pendiente.')
     }
     retry()
     window.addEventListener('online', retry)
@@ -104,11 +176,16 @@ export default function Form({ onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const set = (k, v) => { setData((d) => ({ ...d, [k]: v })); if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined })) }
+  const set    = (k, v) => { setData((d) => ({ ...d, [k]: v })); if (errors[k]) setErrors((e) => ({ ...e, [k]: undefined })) }
   const toggle = (k, v) => set(k, data[k].includes(v) ? data[k].filter((x) => x !== v) : [...data[k], v])
   const scrollTop = () => top.current?.scrollTo({ top: 0 })
 
-  // Comportamiento de modal: Esc cierra, el fondo no se desplaza
+  // Si cambia el camp, limpiar disciplinas (pueden no ser válidas para el nuevo camp)
+  const setCamp = (camp) => {
+    setData((d) => ({ ...d, campamento: camp, disciplinas: [] }))
+    if (errors.campamento) setErrors((e) => ({ ...e, campamento: undefined }))
+  }
+
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -119,29 +196,39 @@ export default function Form({ onBack }) {
 
   const next = () => {
     const e = validar(step, data)
-    setErrors(e)
-    const n = Object.keys(e).length
-    if (n) {
-      toast.warning(n === 1 ? 'Falta completar 1 campo' : `Faltan completar ${n} campos`, 'Revisá los campos marcados para continuar.')
-      document.querySelector('.field.error input, .field.error textarea')?.focus()
+    if (Object.keys(e).length) {
+      setErrors(e)
+      const n = Object.keys(e).length
+      toast.warning(
+        n === 1 ? 'Falta 1 campo' : `Faltan ${n} campos`,
+        'Completá los campos marcados para continuar.'
+      )
+      setTimeout(() => {
+        document.querySelector('.field.error input, .field.error textarea, .camp-selector-error')?.focus()
+      }, 50)
       return
     }
-    setStep((s) => s + 1); scrollTop()
+    setErrors({})
+    setTransitioning(true)
+    setStep((s) => s + 1)
+    scrollTop()
+    setTimeout(() => setTransitioning(false), 400)
   }
+
   const back = () => { setErrors({}); setStep((s) => s - 1); scrollTop() }
 
   const submit = async (ev) => {
     ev.preventDefault()
     if (step < STEPS.length - 1) { next(); return }
-    const e = { ...validar(0, data), ...validar(1, data) }
+    const e = validar(step, data)
     setErrors(e)
     if (Object.keys(e).length) {
       const n = Object.keys(e).length
-      toast.warning(n === 1 ? 'Falta completar 1 campo' : `Faltan completar ${n} campos`, 'Revisá los campos marcados para confirmar.')
-      if (Object.keys(validar(0, data)).length) setStep(0)
+      toast.warning(n === 1 ? 'Falta 1 campo' : `Faltan ${n} campos`, 'Completá los campos marcados para confirmar.')
+      setTimeout(() => { document.querySelector('.field.error input, .field.error textarea')?.focus() }, 50)
       return
     }
-    if (!navigator.onLine) { toast.error('Sin conexión', 'Conectate a internet para enviar tu inscripción.'); return }
+    if (!navigator.onLine) { toast.error('Sin conexión', 'Conectate para enviar tu inscripción.'); return }
     setSending(true); setSendError('')
     const loadingId = toast.info('Enviando tu inscripción', 'No cierres esta página.', 0)
     try {
@@ -149,20 +236,20 @@ export default function Form({ onBack }) {
         enviarInscripcion({ ...data, instagram: data.instagram.replace(/^@/, '') }),
         new Promise((r) => setTimeout(r, 500)),
       ])
-      localStorage.removeItem(DRAFT_KEY); sessionStorage.removeItem(DRAFT_KEY + '_step')
+      localStorage.removeItem(DRAFT_KEY)
       toast.dismiss(loadingId)
-      if (res.demo) toast.warning('Modo de prueba', 'Falta conectar Google Sheets: esta inscripción NO se guardó en la planilla.', 9000)
+      if (res.demo) toast.warning('Modo de prueba', 'Falta conectar Google Sheets: esta inscripción NO se guardó.', 9000)
       else toast.success('Inscripción enviada', 'Tus datos quedaron guardados correctamente.')
-      setCodigo(res.id); setDemo(res.demo)
+      setDemo(res.demo)
       setDone(true); scrollTop()
     } catch {
       toast.dismiss(loadingId)
-      toast.error('No pudimos enviar tu inscripción', 'Tus datos están a salvo en este dispositivo. Se reenviarán solos al volver la conexión, o probá de nuevo.')
-      setSendError('No se pudo enviar. Tus datos siguen guardados: tocá "Confirmar inscripción" para reintentar.')
+      toast.error('No pudimos enviar', 'Tus datos están a salvo. Tocá "Confirmar" para reintentar.')
+      setSendError('No se pudo enviar. Tus datos siguen guardados — tocá "Confirmar inscripción" para reintentar.')
     } finally { setSending(false) }
   }
 
-  const txt = (k, props = {}) => (
+  const txt  = (k, props = {}) => (
     <input id={k} type="text" value={data[k]} onChange={(e) => set(k, e.target.value)} {...props} />
   )
   const area = (k, ph) => <textarea id={k} rows={3} value={data[k]} placeholder={ph} onChange={(e) => set(k, e.target.value)} />
@@ -181,9 +268,13 @@ export default function Form({ onBack }) {
     </div>
   )
 
+  const isTrail   = data.campamento === 'TrailCamp'
+  const campColor = isTrail ? 'camp-trail' : 'camp-tri'
+  const discs     = isTrail ? DISCS_TRAIL : DISCS_TRI
+
   const modal = (children) => (
     <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !sending) onBack() }}>
-      <div className="card" role="dialog" aria-modal="true" aria-labelledby="form-title">
+      <div className={`card ${campColor}-card`} role="dialog" aria-modal="true" aria-labelledby="form-title">
         {children}
       </div>
     </div>
@@ -202,14 +293,19 @@ export default function Form({ onBack }) {
   if (done) {
     return modal(
       <>
-        {head('Ya estás adentro', 'Inscripción recibida')}
+        {head('¡Ya estás adentro!', `${data.campamento} · Inscripción recibida`)}
         <div className="card-body done" ref={top}>
-          <p>Recibimos tu inscripción, {data.nombre}. Te vamos a contactar por WhatsApp o mail con los próximos pasos del TriCamp (13, 14 y 15 de noviembre).</p>
-          {codigo && <p className="code">Tu código de inscripción<b>{codigo}</b></p>}
-          {demo && <p className="notice">Modo de prueba: esta inscripción no se guardó en Google Sheets.</p>}
+          <div className={`done-camp-badge ${isTrail ? 'done-camp-trail' : 'done-camp-tri'}`}>
+            {data.campamento}
+          </div>
+          <p>Recibimos tu inscripción, <strong>{data.nombre}</strong>. Te vamos a contactar por WhatsApp o mail con los próximos pasos.</p>
+          <p style={{ color: 'var(--gray)', fontSize: '.9rem' }}>La Caldera, Salta · 13, 14 y 15 de noviembre</p>
+          {demo   && <p className="notice">Modo de prueba: esta inscripción no se guardó en Google Sheets.</p>}
         </div>
         <footer className="card-foot">
-          <button type="button" className="btn btn-plain" onClick={() => { setData(INIT); setStep(0); setDone(false) }}>Inscribir a otra persona</button>
+          <button type="button" className="btn btn-plain" onClick={() => { setData(INIT); setStep(0); setErrors({}); setDone(false) }}>
+            Inscribir a otra persona
+          </button>
           <button type="button" className="btn btn-main" onClick={onBack}>Listo</button>
         </footer>
       </>
@@ -218,7 +314,15 @@ export default function Form({ onBack }) {
 
   return modal(
     <ErrCtx.Provider value={errors}>
-      {head('Inscripción al TriCamp', 'La Caldera, Salta · 13, 14 y 15 de noviembre')}
+      {head(
+        step === 0
+          ? 'Inscripción AR Endurance 2026'
+          : `Inscripción al ${data.campamento || 'Camp'}`,
+        step === 0
+          ? 'La Caldera, Salta · 13, 14 y 15 de noviembre'
+          : `La Caldera, Salta · 13, 14 y 15 de noviembre`
+      )}
+
       <ol className="steps" aria-label="Progreso">
         {STEPS.map((s, i) => (
           <li key={s} className={i === step ? 'on' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}>
@@ -229,23 +333,44 @@ export default function Form({ onBack }) {
 
       <form onSubmit={submit} noValidate aria-busy={sending} className="card-form">
         <div className="card-body" ref={top} key={step}>
+
+          {/* STEP 0 — elegir camp */}
           {step === 0 && (
+            <CampSelector
+              value={data.campamento}
+              onChange={setCamp}
+              error={errors.campamento}
+            />
+          )}
+
+          {/* STEP 1 — datos personales */}
+          {step === 1 && (
             <div className="grid two">
-              <Field k="nombre" label="Nombre">{txt('nombre', { autoComplete: 'given-name' })}</Field>
+              {data.campamento && (
+                <div className="span2">
+                  <div className={`camp-badge-inline ${isTrail ? 'camp-badge-trail' : 'camp-badge-tri'}`}>
+                    {data.campamento}
+                  </div>
+                </div>
+              )}
+              <Field k="nombre"   label="Nombre">{txt('nombre',   { autoComplete: 'given-name' })}</Field>
               <Field k="apellido" label="Apellido">{txt('apellido', { autoComplete: 'family-name' })}</Field>
-              <Field k="edad" label="Edad"><input id="edad" type="number" inputMode="numeric" min="10" max="90" value={data.edad} onChange={(e) => set('edad', e.target.value)} /></Field>
+              <Field k="edad"     label="Edad"><input id="edad" type="number" inputMode="numeric" min="10" max="90" value={data.edad} onChange={(e) => set('edad', e.target.value)} /></Field>
               <Field k="telefono" label="Teléfono / WhatsApp"><input id="telefono" type="tel" inputMode="tel" autoComplete="tel" placeholder="387 000 0000" value={data.telefono} onChange={(e) => set('telefono', e.target.value)} /></Field>
               <div className="span2"><Field k="email" label="Correo electrónico"><input id="email" type="email" inputMode="email" autoComplete="email" value={data.email} onChange={(e) => set('email', e.target.value)} /></Field></div>
               <div className="span2"><Field k="instagram" label="Instagram" hint="(opcional)">{txt('instagram', { autoCapitalize: 'none', autoCorrect: 'off', placeholder: '@usuario' })}</Field></div>
             </div>
           )}
 
-          {step === 1 && (
+          {/* STEP 2 — deporte y salud */}
+          {step === 2 && (
             <div className="grid">
               <Group k="nivel" label="Nivel actual">{opts('nivel', NIVELES)}</Group>
-              <Group k="disciplinas" label="¿Qué disciplinas practicás?" hint="(podés elegir varias)">{opts('disciplinas', DISCS, true)}</Group>
+              <Group k="disciplinas" label={isTrail ? '¿Qué disciplinas practicás?' : '¿Qué disciplinas practicás?'} hint="(podés elegir varias)">
+                {opts('disciplinas', discs, true)}
+              </Group>
               <Field k="antecedentes_deportivos" label="Antecedentes deportivos" hint="(carreras, años entrenando, club; opcional)">{area('antecedentes_deportivos')}</Field>
-              <Field k="objetivo_corto" label="Objetivo a corto plazo" hint="(próximos 3 meses)">{area('objetivo_corto')}</Field>
+              <Field k="objetivo_corto"   label="Objetivo a corto plazo"   hint="(próximos 3 meses)">{area('objetivo_corto')}</Field>
               <Field k="objetivo_mediano" label="Objetivo a mediano plazo" hint="(6 a 12 meses)">{area('objetivo_mediano')}</Field>
 
               <h3>Salud</h3>
@@ -268,7 +393,7 @@ export default function Form({ onBack }) {
               <div className={`field ${errors.acepta_terminos ? 'error' : ''}`}>
                 <label className="agree" htmlFor="acepta_terminos">
                   <input id="acepta_terminos" type="checkbox" checked={data.acepta_terminos} onChange={(e) => set('acepta_terminos', e.target.checked)} />
-                  <span>Declaro que la información es verdadera, que me encuentro apto/a para realizar actividad física y autorizo el uso de mis datos para la organización del TriCamp.</span>
+                  <span>Declaro que la información es verdadera, que me encuentro apto/a para realizar actividad física y autorizo el uso de mis datos para la organización del camp.</span>
                 </label>
                 {errors.acepta_terminos && <span className="err" role="alert">{errors.acepta_terminos}</span>}
               </div>
@@ -282,8 +407,12 @@ export default function Form({ onBack }) {
             ? <button type="button" className="btn btn-plain" onClick={back}>Atrás</button>
             : <span className="draft">Tu avance se guarda solo.</span>}
           {step < STEPS.length - 1
-            ? <button type="button" className="btn btn-main" onClick={next}>Siguiente</button>
-            : <button type="submit" className="btn btn-main" disabled={sending}>{sending ? 'Enviando…' : 'Confirmar inscripción'}</button>}
+            ? <button type="button" className={`btn ${isTrail && step > 0 ? 'btn-main-trail' : 'btn-main'}`} onClick={next} disabled={transitioning}>
+                {step === 0 && data.campamento ? `Continuar con ${data.campamento}` : 'Siguiente'}
+              </button>
+            : <button type="submit" className={`btn ${isTrail ? 'btn-main-trail' : 'btn-main'}`} disabled={sending || transitioning}>
+                {sending ? 'Enviando…' : 'Confirmar inscripción'}
+              </button>}
         </footer>
       </form>
     </ErrCtx.Provider>

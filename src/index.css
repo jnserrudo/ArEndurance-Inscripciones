@@ -9,6 +9,9 @@
   --paper:       #f6f6f3;
   --gray:        #5c6563;
   --danger:      #b3261e;
+  --trail:       #c2571a;
+  --trail-hover: #a84b14;
+  --trail-soft:  #f7ece2;
   --font:        'DM Sans', system-ui, sans-serif;
 }
 
@@ -32,13 +35,12 @@ button { font: inherit; cursor: pointer; background: none; border: 0; color: inh
 .btn-sm { padding: .55rem 1.1rem; font-size: .9rem; border-radius: 6px; }
 .btn-light { background: var(--white); color: var(--green); border: 1.5px solid var(--white); }
 .btn-light:hover { background: var(--green-soft); border-color: var(--green-soft); }
-.btn-hero {
-  background: var(--white); color: var(--green);
-  padding: .9rem 2rem; font-size: 1.05rem; margin-top: .5rem; border-radius: 8px;
-}
-.btn-hero:hover { background: var(--green-soft); }
 .btn-plain { background: transparent; color: var(--black); border: 1px solid var(--line); border-radius: 8px; }
 .btn-plain:hover { background: var(--paper); }
+
+/* Variantes Trail (naranja montaña) — usadas dentro del formulario */
+.btn-main-trail { background: var(--trail); }
+.btn-main-trail:hover { background: var(--trail-hover); }
 
 /* ---------- Nav ---------- */
 .nav {
@@ -89,16 +91,33 @@ button { font: inherit; cursor: pointer; background: none; border: 0; color: inh
 .hero-pills span { font-size: .85rem; border: 1px solid rgba(255,255,255,.4); border-radius: 4px; padding: .22rem .6rem; }
 .badge { background: var(--white); color: var(--green); font-weight: 700; padding: .22rem .6rem; border-radius: 4px; font-size: .85rem; }
 
+/* ---------- Camps (info breve) ---------- */
+.camps-brief {
+  display: grid; gap: .55rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.cb {
+  font-size: .92rem; color: var(--gray);
+  display: flex; gap: .45rem; align-items: baseline; flex-wrap: wrap;
+}
+.cb strong { font-size: .98rem; font-weight: 800; }
+.cb-tri strong   { color: var(--green); }
+.cb-trail strong { color: var(--trail); }
+
 /* ---------- Disciplinas ---------- */
 .disc-strip {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(2, 1fr);
   border-bottom: 1px solid var(--line);
 }
 .disc-card {
   display: flex; flex-direction: column; gap: .15rem;
   padding: 1.1rem .9rem; border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
-.disc-card:last-child { border-right: 0; }
+.disc-card:nth-child(2n) { border-right: 0; }
+.disc-card:nth-last-child(-n+2) { border-bottom: 0; }
 .disc-n { font-size: .72rem; color: var(--gray); font-weight: 500; }
 .disc-card strong { font-size: clamp(.95rem, 3.5vw, 1.1rem); font-weight: 700; }
 .disc-card small { font-size: .75rem; color: var(--gray); }
@@ -176,25 +195,91 @@ button { font: inherit; cursor: pointer; background: none; border: 0; color: inh
 .desk-gallery {
   display: none;  /* se activa en @media 720px+ */
   grid-template-columns: repeat(5, 1fr);
-  gap: 3px;
-  background: var(--black);
-  /* Altura fija que permita ver bien fotos portrait */
+  gap: 4px;
+  background: #000;
+  /* Altura fija e igual para todos — fotos portrait cropéadas por arriba */
   height: 340px;
 }
 .desk-photo {
   overflow: hidden;
   background: #000;
-  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  border: none; padding: 0; margin: 0;
+  cursor: zoom-in;
+  display: block;
 }
 .desk-photo img {
   width: 100%; height: 100%;
-  /* contain: muestra la imagen completa, sin recortar */
-  object-fit: contain;
-  object-position: center;
+  /* cover: llena la celda uniformemente; object-position viene inline por foto */
+  object-fit: cover;
   display: block;
-  transition: transform .3s ease;
+  transition: transform .35s ease;
 }
-.desk-photo:hover img { transform: scale(1.04); }
+.desk-photo:hover img { transform: scale(1.06); }
+
+/* Overlay con icono de zoom al hover */
+.desk-photo-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .25s;
+}
+.desk-photo:hover .desk-photo-overlay { background: rgba(0,0,0,.28); }
+.desk-photo-icon {
+  color: white; font-size: 2rem; line-height: 1;
+  opacity: 0; transform: scale(.7);
+  transition: opacity .2s, transform .2s;
+}
+.desk-photo:hover .desk-photo-icon { opacity: 1; transform: scale(1); }
+
+/* ---------- Lightbox ---------- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.93);
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  animation: lb-fade .2s ease;
+}
+@keyframes lb-fade { from { opacity: 0 } to { opacity: 1 } }
+
+.lb-figure {
+  display: flex; flex-direction: column; align-items: center;
+  max-width: calc(100vw - 8rem);
+  animation: lb-in .22s ease;
+}
+@keyframes lb-in { from { transform: scale(.92); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+.lb-img {
+  max-width: 100%;
+  max-height: 88dvh;
+  object-fit: contain;
+  border-radius: 4px;
+  display: block;
+}
+.lb-caption {
+  margin-top: .5rem;
+  font-size: .8rem;
+  color: rgba(255,255,255,.45);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-close {
+  position: absolute; top: .9rem; right: 1rem;
+  background: none; border: none;
+  color: rgba(255,255,255,.7); font-size: 2.2rem; line-height: 1;
+  cursor: pointer; padding: .25rem;
+  transition: color .15s;
+}
+.lb-close:hover { color: #fff; }
+
+.lb-nav {
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+  color: #fff; font-size: 2.2rem; line-height: 1;
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex: none;
+  transition: background .15s;
+}
+.lb-nav:hover { background: rgba(255,255,255,.22); }
 
 /* ---------- Pilares ---------- */
 .pillars-strip {
@@ -290,8 +375,54 @@ input:focus, textarea:focus { outline: none; border-color: var(--green); backgro
 .agree input { width: 18px; height: 18px; flex: none; margin-top: 2px; accent-color: var(--green); }
 
 .notice { background: #fdf3f2; border-left: 3px solid var(--danger); color: var(--danger); padding: .75rem 1rem; border-radius: 6px; font-size: .9rem; }
-.code { background: var(--green-soft); border-radius: 8px; padding: .9rem 1rem; margin: 1rem 0; font-size: .88rem; color: var(--green); }
-.code b { display: block; font-size: 1.5rem; margin-top: .1rem; letter-spacing: .04em; }
+
+/* ---------- Selector de camp (paso 0 del form) ---------- */
+.camp-selector { display: flex; flex-direction: column; gap: 1rem; }
+.camp-selector-label { font-size: .95rem; color: var(--gray); text-align: center; }
+.camp-selector-cards { display: grid; gap: .9rem; }
+.camp-sel-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  padding: 1.4rem 1.1rem; text-align: center;
+  background: var(--paper);
+  border: 2px solid var(--line); border-radius: 12px;
+  transition: border-color .15s, background .15s;
+}
+.camp-sel-card:hover { border-color: #b9c0bc; }
+.camp-sel-tri.camp-sel-card-on    { border-color: var(--green); background: var(--green-soft); }
+.camp-sel-trail.camp-sel-card-on  { border-color: var(--trail); background: var(--trail-soft); }
+.camp-sel-title { font-size: 1.3rem; font-weight: 800; }
+.camp-sel-sub { font-size: .82rem; color: var(--gray); }
+.camp-sel-list { list-style: none; margin-top: .3rem; display: grid; gap: .3rem; font-size: .85rem; color: var(--black); }
+.camp-sel-list li::before { content: '· '; font-weight: 700; }
+.camp-sel-check {
+  margin-top: .4rem; font-size: .82rem; font-weight: 700; color: var(--green);
+}
+.camp-sel-trail .camp-sel-check { color: var(--trail); }
+.camp-selector-error .camp-sel-card { border-color: var(--danger); }
+
+/* Acento de la card modal según camp elegido */
+.card.camp-trail-card { border-top: 4px solid var(--trail); }
+.card.camp-tri-card { border-top: 4px solid var(--green); }
+
+/* Badge del camp elegido dentro del form */
+.camp-badge-inline {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .82rem; font-weight: 700;
+  padding: .3rem .8rem; border-radius: 999px;
+  background: var(--green-soft); color: var(--green);
+}
+.camp-badge-trail { background: var(--trail-soft); color: var(--trail); }
+
+/* Badge grande en pantalla de confirmación */
+.done-camp-badge {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-size: 1rem; font-weight: 800;
+  padding: .5rem 1.1rem; border-radius: 999px;
+  margin-bottom: .5rem;
+}
+.done-camp-tri { background: var(--green-soft); color: var(--green); }
+.done-camp-trail { background: var(--trail-soft); color: var(--trail); }
 
 /* ---------- Toasts ---------- */
 .toasts { position: fixed; z-index: 100; top: .75rem; left: .75rem; right: .75rem; display: grid; gap: .5rem; pointer-events: none; justify-items: center; }
@@ -311,25 +442,33 @@ input:focus, textarea:focus { outline: none; border-color: var(--green); backgro
   .hero-content {
     padding-inline: max(2rem, calc((100vw - 1100px) / 2));
     padding-bottom: 4rem;
-    margin-top: 45dvh;  /* en desktop también posicionamos en zona inferior de la foto */
+    margin-top: 45dvh;
   }
   .hero {
     min-height: 100dvh;
-    /* Desktop: foto lago, personas están en ~60-75% inferior */
     background-position: center 65%;
   }
   .hero-title { font-size: clamp(5rem, 10vw, 10rem); }
 
-  .disc-strip { padding-inline: max(2rem, calc((100vw - 1100px) / 2)); }
-  .disc-card { padding: 1.4rem 1rem; }
+  .camps-brief {
+    grid-template-columns: 1fr 1fr;
+    padding: 1.25rem max(2rem, calc((100vw - 1100px) / 2));
+    gap: 1.5rem;
+  }
+
+  .camp-selector-cards { grid-template-columns: 1fr 1fr; }
+
+  .disc-strip { grid-template-columns: repeat(4, 1fr); padding-inline: max(2rem, calc((100vw - 1100px) / 2)); }
+  .disc-card { padding: 1.4rem 1rem; border-bottom: 0; }
+  .disc-card:nth-child(2n) { border-right: 1px solid var(--line); }
+  .disc-card:last-child { border-right: 0; }
   .disc-card strong { font-size: 1.1rem; }
 
-  /* Desktop: landscape 16/9 pero con object-position que viene por foto (inline) */
-  .carousel { aspect-ratio: 16/9; max-height: 75dvh; }
-  /* NO sobreescribir object-position acá — viene inline por imagen */
+  /* Desktop: ocultar carrusel, mostrar galería de fotos completas */
+  .car-mobile { display: none; }
+  .desk-gallery { display: grid; }
 
-  .car-header { padding: 1rem max(2rem, calc((100vw - 1100px) / 2)) .85rem; }
-  .car-btn { width: 46px; height: 46px; font-size: 1.7rem; }
+  .car-header { padding: .9rem max(2rem, calc((100vw - 1100px) / 2)) .75rem; }
 
   .pillars-row { gap: 0; }
   .pillars-body { font-size: 1rem; }

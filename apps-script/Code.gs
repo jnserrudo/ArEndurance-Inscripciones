@@ -11,12 +11,22 @@
  * Pendiente / Confirmado / Pagó / Cancelado. La hoja "Resumen" cuenta todo sola.
  */
 var HOJA = 'Inscripciones';
+// Claves internas: coinciden con el payload que manda la app. NO cambiar el orden.
 var COLUMNAS = [
-  'id', 'fecha_registro', 'estado', 'nombre', 'apellido', 'edad', 'email', 'telefono', 'instagram',
+  'id', 'fecha_registro', 'estado', 'campamento', 'nombre', 'apellido', 'edad', 'email', 'telefono', 'instagram',
   'nivel', 'disciplinas', 'antecedentes_deportivos', 'objetivo_corto', 'objetivo_mediano',
   'lesiones', 'detalle_lesiones', 'condiciones_medicas', 'alimentacion',
   'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
   'talle_remera', 'alojamiento', 'comentarios', 'acepta_terminos', 'dispositivo'
+];
+// Lo que se ve como encabezado en la hoja, en el mismo orden que COLUMNAS.
+var ETIQUETAS = [
+  'ID', 'Fecha de registro', 'Estado', 'Campamento', 'Nombre', 'Apellido', 'Edad', 'Correo electrónico',
+  'Teléfono / WhatsApp', 'Instagram', 'Nivel', 'Disciplinas', 'Antecedentes deportivos',
+  'Objetivo a corto plazo', 'Objetivo a mediano plazo', 'Lesiones', 'Detalle de lesiones',
+  'Condiciones médicas / alergias / medicación', 'Restricciones alimentarias',
+  'Contacto de emergencia', 'Tel. de emergencia', 'Talle de remera', 'Alojamiento',
+  'Comentarios', 'Aceptó términos', 'Dispositivo'
 ];
 
 function json_(obj) {
@@ -27,39 +37,114 @@ function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(HOJA) || ss.insertSheet(HOJA);
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow(COLUMNAS);
+    escribirEncabezados_(sheet);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, COLUMNAS.length).setFontWeight('bold').setBackground('#0d3a38').setFontColor('#ffffff');
     var col = COLUMNAS.indexOf('estado') + 1;
     sheet.getRange(2, col, 1000, 1).setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(['Pendiente', 'Confirmado', 'Pagó', 'Cancelado'], true).build()
     );
-    armarResumen_(ss);
+    actualizarResumen_(ss);
+  } else {
+    // Si la hoja ya existía con encabezados viejos, inserta las columnas que falten
+    // en su posición correcta (los datos viejos quedan alineados con el nuevo orden).
+    if (migrarEncabezados_(sheet)) {
+      normalizarFilas_(sheet);
+      actualizarResumen_(ss);
+    }
   }
   return sheet;
 }
 
-function armarResumen_(ss) {
+// Acomoda valores de filas cargadas con el formato viejo:
+// booleans -> "Sí"/"No" y fecha ISO -> dd/mm/yyyy hh:mm.
+function normalizarFilas_(sheet) {
+  var filas = sheet.getLastRow() - 1;
+  if (filas < 1) return;
+  var cols = sheet.getLastColumn();
+  var rango = sheet.getRange(2, 1, filas, cols);
+  var datos = rango.getValues();
+  var iFecha = COLUMNAS.indexOf('fecha_registro');
+  var iTerminos = COLUMNAS.indexOf('acepta_terminos');
+  var tz = sheet.getParent().getSpreadsheetTimeZone();
+  datos.forEach(function (f) {
+    var v = f[iTerminos];
+    if (v === true || v === 'true' || v === 'TRUE') f[iTerminos] = 'Sí';
+    if (v === false || v === 'false' || v === 'FALSE') f[iTerminos] = 'No';
+    var d = f[iFecha];
+    // Detecta ISO 8601 y la formatea; si ya está en otro formato no la toca
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(d)) {
+      f[iFecha] = Utilities.formatDate(new Date(d), tz, 'dd/MM/yyyy HH:mm');
+    }
+  });
+  rango.setValues(datos);
+}
+
+function escribirEncabezados_(sheet) {
+  sheet.getRange(1, 1, 1, ETIQUETAS.length)
+    .setValues([ETIQUETAS])
+    .setFontWeight('bold').setBackground('#0d3a38').setFontColor('#ffffff');
+}
+
+// Devuelve true si tuvo que insertar columnas nuevas.
+function migrarEncabezados_(sheet) {
+  var cambio = false;
+  var actuales = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+  COLUMNAS.forEach(function (name, idx) {
+    if (actuales.indexOf(name) === -1 && actuales.indexOf(ETIQUETAS[idx]) === -1) {
+      sheet.insertColumnBefore(idx + 1);
+      actuales.splice(idx, 0, '');
+      cambio = true;
+    }
+  });
+  // Renombra todo a las etiquetas legibles (cubre encabezados viejos tipo snake_case)
+  var renombrado = ETIQUETAS.some(function (et, i) { return actuales[i] !== et; });
+  if (renombrado) escribirEncabezados_(sheet);
+  return cambio || renombrado;
+}
+
+// Resumen con valores calculados por el script (sin fórmulas: evita errores
+// de separador ; vs , según el locale de la hoja). Se recalcula en cada POST
+// y también cuando editás la hoja "Inscripciones" a mano (ver onEdit).
+function actualizarResumen_(ss) {
   var r = ss.getSheetByName('Resumen') || ss.insertSheet('Resumen');
+  var sheet = ss.getSheetByName(HOJA);
+  var datos = sheet && sheet.getLastRow() > 1
+    ? sheet.getRange(2, 1, sheet.getLastRow() - 1, COLUMNAS.length).getValues()
+    : [];
+  var idx = function (name) { return COLUMNAS.indexOf(name); };
+  var cuenta = function (colName, val) {
+    var c = idx(colName);
+    return datos.filter(function (f) { return String(f[c]).trim() === val; }).length;
+  };
+  var tz = ss.getSpreadsheetTimeZone();
   r.clear();
-  var est = 'Inscripciones!' + String.fromCharCode(64 + COLUMNAS.indexOf('estado') + 1) + ':' + String.fromCharCode(64 + COLUMNAS.indexOf('estado') + 1);
-  var niv = 'Inscripciones!' + String.fromCharCode(64 + COLUMNAS.indexOf('nivel') + 1) + ':' + String.fromCharCode(64 + COLUMNAS.indexOf('nivel') + 1);
-  var les = 'Inscripciones!' + String.fromCharCode(64 + COLUMNAS.indexOf('lesiones') + 1) + ':' + String.fromCharCode(64 + COLUMNAS.indexOf('lesiones') + 1);
-  var idc = 'Inscripciones!A:A';
-  r.getRange('A1:B1').setValues([['Resumen TriCamp', '']]).setFontWeight('bold');
-  r.getRange('A3:B12').setFormulas([
-    ['Total de inscriptos', '=MAX(0,COUNTA(' + idc + ')-1)'],
-    ['Pendientes', '=COUNTIF(' + est + ',"Pendiente")'],
-    ['Confirmados', '=COUNTIF(' + est + ',"Confirmado")'],
-    ['Pagaron', '=COUNTIF(' + est + ',"Pagó")'],
-    ['Cancelados', '=COUNTIF(' + est + ',"Cancelado")'],
-    ['Nivel: Principiante', '=COUNTIF(' + niv + ',"Principiante")'],
-    ['Nivel: Intermedio', '=COUNTIF(' + niv + ',"Intermedio")'],
-    ['Nivel: Avanzado', '=COUNTIF(' + niv + ',"Avanzado")'],
-    ['Nivel: Competitivo', '=COUNTIF(' + niv + ',"Competitivo")'],
-    ['Con lesión actual', '=COUNTIF(' + les + ',"Sí, actualmente")']
+  r.getRange('A1:B1').setValues([['Resumen AR Endurance Camps', '']]).setFontWeight('bold');
+  r.getRange('A2').setValue('Actualizado: ' + Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm'))
+    .setFontSize(9).setFontColor('#5c6563');
+  r.getRange('A4:B15').setValues([
+    ['Total de inscriptos', datos.length],
+    ['TriCamp', cuenta('campamento', 'TriCamp')],
+    ['TrailCamp', cuenta('campamento', 'TrailCamp')],
+    ['Pendientes', cuenta('estado', 'Pendiente')],
+    ['Confirmados', cuenta('estado', 'Confirmado')],
+    ['Pagaron', cuenta('estado', 'Pagó')],
+    ['Cancelados', cuenta('estado', 'Cancelado')],
+    ['Nivel: Principiante', cuenta('nivel', 'Principiante')],
+    ['Nivel: Intermedio', cuenta('nivel', 'Intermedio')],
+    ['Nivel: Avanzado', cuenta('nivel', 'Avanzado')],
+    ['Nivel: Competitivo', cuenta('nivel', 'Competitivo')],
+    ['Con lesión actual', cuenta('lesiones', 'Sí, actualmente')]
   ]);
+  r.getRange('A4:A15').setFontWeight('bold');
   r.setColumnWidth(1, 220);
+}
+
+// Al editar la hoja "Inscripciones" (ej: cambiar Estado a mano) se recalcula el Resumen.
+function onEdit(e) {
+  if (!e) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() === HOJA) actualizarResumen_(sh.getParent());
 }
 
 function doPost(e) {
@@ -79,16 +164,24 @@ function doPost(e) {
     var repetido = emails.some(function (m) { return String(m).toLowerCase() === String(data.email).toLowerCase(); });
 
     data.estado = 'Pendiente';
+    var tz = sheet.getParent().getSpreadsheetTimeZone();
     var fila = COLUMNAS.map(function (c) {
       var v = data[c];
       if (Array.isArray(v)) v = v.join(', ');
+      if (typeof v === 'boolean') v = v ? 'Sí' : 'No';
       if (v === undefined || v === null) v = '';
       // Evita que se interprete como fórmula
       if (typeof v === 'string' && /^[=+\-@]/.test(v)) v = "'" + v;
       return v;
     });
+    // Fecha legible: dd/mm/yyyy hh:mm según la zona horaria de la hoja
+    var iFecha = COLUMNAS.indexOf('fecha_registro');
+    if (data.fecha_registro) {
+      fila[iFecha] = Utilities.formatDate(new Date(data.fecha_registro), tz, 'dd/MM/yyyy HH:mm');
+    }
     sheet.appendRow(fila);
     if (repetido) sheet.getRange(sheet.getLastRow(), 1, 1, COLUMNAS.length).setBackground('#fff3cd');
+    actualizarResumen_(sheet.getParent());
     return json_({ ok: true, id: data.id, duplicado: repetido });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -98,5 +191,5 @@ function doPost(e) {
 }
 
 function doGet() {
-  return ContentService.createTextOutput('TriCamp API OK');
+  return ContentService.createTextOutput('AR Endurance Camps API v3');
 }

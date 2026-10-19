@@ -1,0 +1,4 @@
+/* Redirect para SPA en Render / Netlify
+   Redirige todas las rutas al index.html para que React maneje el routing
+   sin que el servidor devuelva 404 en rutas directas o al recargar */
+/*    /index.html   200
