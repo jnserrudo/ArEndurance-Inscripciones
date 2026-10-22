@@ -112,7 +112,7 @@ function colLetter_(c) {
   return s;
 }
 
-// El resumen usa FÓRMULAS COUNTIF/COUNTA en vivo: se actualizan solas al editar
+// El resumen usa FÓRMULAS en vivo (COUNTA / SUMPRODUCT): se actualizan solas al editar
 // o BORRAR filas. Borrar una fila no dispara el trigger onEdit, así que con
 // valores calculados por el script el resumen quedaba desactualizado.
 function actualizarResumen_(ss) {
@@ -121,7 +121,9 @@ function actualizarResumen_(ss) {
     var letra = colLetter_(COLUMNAS.indexOf(colName) + 1);
     return "'" + HOJA + "'!" + letra + '2:' + letra;
   };
-  var cuenta = function (colName, val) { return '=COUNTIF(' + ref(colName) + ',"' + val + '")'; };
+  // SUMPRODUCT con UN solo argumento: no usa separador , ni ;, así funciona
+  // igual en hojas con locale español (donde COUNTIF con "," da #ERROR!).
+  var cuenta = function (colName, val) { return '=SUMPRODUCT(--(' + ref(colName) + '="' + val + '"))'; };
   r.clear();
   r.getRange('A1:B1').setValues([['Resumen AR Endurance Camps', '']]).setFontWeight('bold');
   r.getRange('A2').setValue('Conteos en vivo: se actualiza solo al editar o borrar filas.')

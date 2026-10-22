@@ -442,9 +442,6 @@ export default function Form({ onBack, campInicial = '' }) {
                 <Field k="contacto_emergencia_telefono" label="Teléfono" req><input id="contacto_emergencia_telefono" type="tel" inputMode="tel" value={data.contacto_emergencia_telefono} onChange={(e) => set('contacto_emergencia_telefono', e.target.value)} /></Field>
               </div>
 
-              <h3>Logística</h3>
-              <Group k="talle_remera" label="Talle de remera" hint="(opcional)">{opts('talle_remera', ['XS', 'S', 'M', 'L', 'XL', 'XXL'])}</Group>
-              <Group k="alojamiento" label="¿Necesitás alojamiento?" hint="(opcional)">{opts('alojamiento', ['Sí', 'No', 'Ya tengo'])}</Group>
               <Field k="comentarios" label="Comentarios" hint="(opcional)">{area('comentarios')}</Field>
 
               <h3>Pago</h3>
